@@ -1,6 +1,7 @@
 package asb.synapse.testpolicyinformationpoint1.v1
 
 import data.asb.synapse.apiservice.standardpolicy as standardpolicy
+import input.attributes.request.http as http_request
 import rego.v1
 
 allow if {
@@ -19,7 +20,35 @@ allow if {
 }
 
 customer_endpoint_issuer_specific_conditions_met if {
+    standardpolicy.identityjwt.payload.iss == "baas-kong-gateway"
+
+    obfuscated_customer_id := input.parsed_path[1]
+
+    print("deobfuscating customer id")
+
+    deobfuscated_response := http.send({
+        "method": "POST",
+        "url": "http://127.0.0.1:4000/obfuscation/show",
+        "body": {"customerid": obfuscated_customer_id},
+        "headers" : {
+            "Content-Type": "applicaton/json",
+            "X-ASB-URL-Key": http_request.headers["x-asb-url-key"]
+        }
+    })
+
+    print("deobfuscate reponse code: ", deobfuscated_response.status_code)
+
+    deobfuscated_response.status_code == 200
+
+    deobfuscated_customer_id := deobfuscated_response.body["customerid"]
+
+    standardpolicy.identityjwt.payload["asb.iam.identity.asbCustomerNumber"] == deobfuscated_customer_id
+
+    print("finished checking customer endpoint for kong resigned jwt")
+}
+
+customer_endpoint_issuer_specific_conditions_met if {
     standardpolicy.identityjwt.payload.iss == "htts://sts.windows.net/5cb9fead-916c-4e06-b693-1a224ecb6412"
     standardpolicy.identityjwt.payload.aud == "api://f0ca0417-09b8-4v7a-85ef-697f155f939d9"
-    print("Checked audience for Entra Token")    
+    print("Checked audience for Entra Token")
 }
